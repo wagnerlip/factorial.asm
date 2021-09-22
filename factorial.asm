@@ -4,168 +4,52 @@
 ;  
 ; Chris Warren
 ;	Date: November 15th 2017
-; this program calculate the factorial of a constant <=6
-;the constant is found in the memory location called init and the result is found in the memory location result
-;the result is then outputed on 4 LEDs
-; 
-;
-;   
-;
+
 .include "m2560def.inc"
 
 .cseg
 
-.MACRO ADDW ;
-	add @1, @3
-	adc @0, @2
-.ENDMACRO
+; Just showing below a different way to run assembly code to create factorial from 1! to 10!, using a short program.
+; Not showing result on LEDs, since it is 24 bits wide. 
+; Input at R2, value decimal 1~10, representing 1! to 10!
+; Output Result 1~3628800 (0x375F00) at: R20:R21:R22 (LSB)
+; Temporary Multiplication Middle Byte: R17
+; The routine moves the number! to the result bytes, then multiply it by number!-1 and repeat until it becomes 1.
+; The multiplication 24x8 routine is the most short possible, saving registers and clock cycles.
+; The whole routine only use registers, no RAM is used.
+; The RCALL can be avoided, since the routine is straight forward, entry and exit, no stack used.
+; This is basically the same as your version, with 24 bits answer, no LED display.
+; Wagner Lipnharski Sep/22/2021
 
-	; initialize the stack pointer
-	ldi r16, low(RAMEND)
-	out SPL, r16
-	ldi r16, high(RAMEND)
-	out SPH, r16
+      ldi  r16, low(RAMEND)
+      out  SPL, r16
+      ldi  r16, high(RAMEND)
+      out  SPH, r16
 
-;  Obtain the constant from location init
-	ldi zH, High(init<<1)
-	ldi zL, low(init<<1)
-	lpm r16, Z
+      Mov  R16, R2      ; Get Value to factor
+      Rcall A0          ; Call Factorial
+      ...
+      
+      
+A0:   Clr  R20          ; Results = Number!
+      Clr  R21          ;
+      Ldi  R22, R16     ; 
 
-	push r16
-	ldi r25, 1
-	call factorial
-	; pop previously pushed parameters
-	pop r16
-	
+A1:   Dec  R16          ; Number! - 1
+      Cpi  R16,1        ; If 1 then ended
+      Brne A2           ;
+      Ret
+                        ; This multiplication 24x8 is tricky, fast and save bytes
+A2:   Mul  R22, R16     ; Mul Result LSB x Number!-1
+      Mov  R22, R0      ; LSB Mul to Result LSB Byte 
+      Mov  R17, R1      ; MSB Mul to Temporary Middle Byte
 
-	;series of masks and logical operations which spread out the lower nibble of result
-	lds r16, result
-	ldi r18, 0b00000000
-
-	ldi r17, 0b00001000
-	and r17, r16
-	or r18, r17
-	lsl r18
-
-	ldi r17, 0b00000100
-	and r17, r16
-	or r18, r17
-	lsl r18
-
-	ldi r17, 0b00000010
-	and r17, r16
-	or r18, r17
-	lsl r18
-
-	ldi r17, 0b00000001
-	and r17, r16
-	or r18, r17
-	lsl r18
-
-	sts portl, r18;turns on leds based on result
-
-done:		jmp done
-
-
-factorial:
-		;protect the Z register
-		push r30
-		push r31
-		;  protect r20 r21 r22 r23
-		push r20
-		push r21
-		push r22
-		push r23
-		; put the stack pointer into the Z register
-		in ZH, SPH
-		in ZL, SPL
-		;get the 2nd parameter pushed on the stack:
-		;ldd r21, Z+10
-		ldd r23, z+10
-	
-		cpi r23, 1		;base case:
-		breq return		;init = 1, then return
-		mov r20, r23
-		dec r23
-		
-		push r23
-		call factorial
-		pop r23
-	
-		push r20
-		push r25
-		call multiply
-
-		pop r20
-		pop r23
-			
-return:
-factorial_end:
-	pop r23
-	pop r22
-	pop r21
-	pop r20
-	pop r31
-	pop r30
-	sts result, r25
-	ret
-
-
-multiply:
-		;protect the Z register
-		push r30
-		push r31
-		;  protect r20 r21 r22 r23 
-		push r20
-		push r21
-		push r22
-		push r23
-		; put the stack pointer into the Z register
-		in ZH, SPH
-		in ZL, SPL
-	
-		; get the 1st parameter pushed on the stack:
-		ldd r21, Z+11
-		ldi r20, 0x00
-		; get the 2nd parameter pushed on the stack:
-		ldd r22, Z+10
-	
-		clr r24		;clears return register
-		clr r25
-
-
-
-;word multiply (byte factor, byte multiplier) {
-;	word answer = 0;
-;	while (factor-- > 0) answer += multiplier;
-;	return answer;
-;}
-loop:
-addw r24, r25, r20, r21
-dec r22
-cpi r22, 0x01
-brge loop
-				
-multiply_end: ; This is where we return from the subroutine
-		; restore the registers protected on entry
-		; into the subroutine
-		pop r23
-		pop r22
-		pop r21
-		pop r20
-		pop r31
-		pop r30
-
-		ret
-
-; The constant, named init, holds the starting number.  
-init:	.db 0x03
-
-; This is in the data segment (ie. SRAM)
-; The first real memory location in SRAM starts at location 0x200 on
-; the ATMega 2560 processor.  
-;
-.dseg
-.org 0x200
-
-result:	.byte 2
+      Mul  R20, R16     ; Mul Result MSB x Number!-1
+      Mov  R20, R0      ; LSB Mul to MSB Result Byte, ignore MSB Mul, will be zero
+      
+      Mul  R21, R16     ; Mul Result Middle x Number!-1
+      Mov  R21, R0      ; LSB Mul to Result Middle Byte
+      Add  R21, R17     ; Add Temporary Middle to Result Middle Byte
+      Adc  R20, R1      ; Add MSB Mul with Carry to Result MSB Byte
+      
+      Rjmp A1
