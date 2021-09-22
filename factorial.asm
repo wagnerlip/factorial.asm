@@ -112,51 +112,22 @@ factorial_end:
 
 
 multiply:
-		;protect the Z register
-		push r30
-		push r31
-		;  protect r20 r21 r22 r23 
-		push r20
-		push r21
-		push r22
-		push r23
-		; put the stack pointer into the Z register
-		in ZH, SPH
-		in ZL, SPL
-	
-		; get the 1st parameter pushed on the stack:
-		ldd r21, Z+11
-		ldi r20, 0x00
-		; get the 2nd parameter pushed on the stack:
-		ldd r22, Z+10
-	
-		clr r24		;clears return register
-		clr r25
+; Didn't follow to see where the data into R20 R21 (LSB) came from, but suppose you can
+; do this directly on the caller routine, considering R22 is the multiplier, and considering
+; AtMegas have in fact the MUL instruction:
+; R20:R21 value to be multiplied by R22
+; Result on R24:R25
+; This multiplying 16x8 bits routine is much shorter and faster.
+
+		Mul  R21, R22
+		Movw R24:R25, R0:R1
+		Mul  R20, R22
+		Add  R24, R0
+                ret
 
 
 
-;word multiply (byte factor, byte multiplier) {
-;	word answer = 0;
-;	while (factor-- > 0) answer += multiplier;
-;	return answer;
-;}
-loop:
-addw r24, r25, r20, r21
-dec r22
-cpi r22, 0x01
-brge loop
-				
-multiply_end: ; This is where we return from the subroutine
-		; restore the registers protected on entry
-		; into the subroutine
-		pop r23
-		pop r22
-		pop r21
-		pop r20
-		pop r31
-		pop r30
 
-		ret
 
 ; The constant, named init, holds the starting number.  
 init:	.db 0x03
