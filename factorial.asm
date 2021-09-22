@@ -40,29 +40,19 @@
 
 	;series of masks and logical operations which spread out the lower nibble of result
 	lds r16, result
-	ldi r18, 0b00000000
-
-	ldi r17, 0b00001000
-	and r17, r16
-	or r18, r17
-	lsl r18
-
-	ldi r17, 0b00000100
-	and r17, r16
-	or r18, r17
-	lsl r18
-
-	ldi r17, 0b00000010
-	and r17, r16
-	or r18, r17
-	lsl r18
-
-	ldi r17, 0b00000001
-	and r17, r16
-	or r18, r17
-	lsl r18
-
-	sts portl, r18;turns on leds based on result
+	
+	; Reduced to only 9 instructions to spread out R16 lower nibble
+	Clr  R18
+	Sbrc R16, 8
+	Ori  R18, 0b1000000
+	Sbrc R16, 4
+	Ori  R18, 0b00100000
+	Sbrc R16, 2
+	Ori  R18, 0b00001000
+	Sbrc R16, 1
+	Ori  R18, 0b00000010
+	
+	sts portl, r18  ;turns on leds based on result
 
 done:		jmp done
 
